@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Negão Lanches — Bot de Resposta Automática WhatsApp</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <div id="authGate" class="modal-backdrop hidden">
+    <div class="modal-card modal-sm">
+      <h2>Acesso ao Painel Local</h2>
+      <p class="muted">Este painel está protegido por chave de acesso configurada no servidor.</p>
+      <form id="authForm" class="stack-form">
+        <label>
+          <span>Chave de acesso</span>
+          <input type="password" id="authKeyInput" placeholder="Digite a chave do painel" required />
+        </label>
+        <div id="authError" class="alert-error hidden"></div>
+        <button type="submit" class="btn btn-caramel">Entrar no Painel</button>
+      </form>
+    </div>
+  </div>
+
+  <header class="topbar">
+    <div class="container topbar-inner">
+      <div class="brand">
+        <div class="brand-badge" aria-hidden="true">NL</div>
+        <div>
+          <h1>Negão Lanches</h1>
+          <p class="brand-sub">Atendimento Automático no WhatsApp (Resposta Receptiva)</p>
+        </div>
+      </div>
+
+      <div class="topbar-meta">
+        <div class="meta-pill">
+          <span class="meta-label">Horário (São Paulo):</span>
+          <strong id="headerClock">--:--:--</strong>
+        </div>
+        <div id="headerBotPill" class="status-pill status-neutral">Bot: --</div>
+        <div id="headerWaPill" class="status-pill status-neutral">WhatsApp: --</div>
+      </div>
+    </div>
+  </header>
+
+  <nav class="main-nav">
+    <div class="container nav-inner">
+      <button class="nav-tab active" data-tab="dashboard">Painel Principal</button>
+      <button class="nav-tab" data-tab="whatsapp">Conexão WhatsApp</button>
+      <button class="nav-tab" data-tab="campaigns">Campanhas</button>
+      <button class="nav-tab" data-tab="history">Histórico</button>
+      <button class="nav-tab" data-tab="optouts">Bloqueados (Opt-out)</button>
+    </div>
+  </nav>
+
+  <main class="container main-content">
+    <div class="notice-banner">
+      <strong>Aviso de Operação:</strong> Este sistema <strong>não realiza disparo em massa</strong>. Ele responde automaticamente apenas quando um cliente envia mensagem entre <strong>17h00 e 00h00 (America/Sao_Paulo)</strong>, limitado a <strong>1 resposta por número por dia</strong> (renovado automaticamente à meia-noite). Conexão não oficial via WhatsApp Web (Baileys), sujeita a desconexões e políticas do WhatsApp.
+    </div>
+
+    <div id="toastArea" class="toast-area" aria-live="polite"></div>
+
+    <!-- TAB: DASHBOARD -->
+    <section id="tab-dashboard" class="tab-panel active">
+      <div class="action-bar card">
+        <div class="action-bar-title">
+          <h2>Ações Rápidas</h2>
+          <span class="muted">Controle completo do atendimento automático</span>
+        </div>
+        <div class="action-buttons">
+          <button id="btnConnectWa" class="btn btn-caramel">CONECTAR WHATSAPP</button>
+          <button id="btnActivateBot" class="btn btn-success">ATIVAR BOT</button>
+          <button id="btnDeactivateBot" class="btn btn-danger">DESATIVAR BOT</button>
+          <button id="btnEditMessage" class="btn btn-brown">EDITAR MENSAGEM</button>
+          <button id="btnPreviewMessage" class="btn btn-outline">VISUALIZAR MENSAGEM</button>
+          <button id="btnManageCampaigns" class="btn btn-outline">GERENCIAR CAMPANHA</button>
+          <button id="btnConsultHistory" class="btn btn-outline">CONSULTAR HISTÓRICO</button>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <article class="card">
+          <div class="card-header">
+            <h3>CONEXÃO</h3>
+            <span id="dashWaBadge" class="badge badge-neutral">Desconectado</span>
+          </div>
+          <dl class="info-list">
+            <div class="info-row">
+              <dt>Status do WhatsApp</dt>
+              <dd id="dashWaStatus">Desconectado</dd>
+            </div>
+            <div class="info-row">
+              <dt>Número conectado</dt>
+              <dd id="dashWaPhone">Nenhum número conectado</dd>
+            </div>
+            <div class="info-row">
+              <dt>Última conexão</dt>
+              <dd id="dashWaLastConn">Nunca conectado</dd>
+            </div>
+            <div class="info-row">
+              <dt>Horário atual (America/Sao_Paulo)</dt>
+              <dd id="dashCurrentTime">--/--/---- --:--:--</dd>
+            </div>
+          </dl>
+        </article>
+
+        <article class="card">
+          <div class="card-header">
+            <h3>BOT</h3>
+            <span id="dashBotBadge" class="badge badge-neutral">Desativado</span>
+          </div>
+          <dl class="info-list">
+            <div class="info-row">
+              <dt>Status do Bot</dt>
+              <dd id="dashBotStatus">--</dd>
+            </div>
+            <div class="info-row">
+              <dt>Campanha ativa</dt>
+              <dd id="dashActiveCampaign">Nenhuma</dd>
+            </div>
+            <div class="info-row">
+              <dt>Horário permitido</dt>
+              <dd id="dashAllowedHours">17:00 às 00:00</dd>
+            </div>
+            <div class="info-row">
+              <dt>Próxima abertura da janela</dt>
+              <dd id="dashNextWindow">--</dd>
+            </div>
+          </dl>
+        </article>
+      </div>
+
+      <section class="card">
+        <div class="card-header">
+          <h3>ESTATÍSTICAS</h3>
+          <span class="muted">Referência diária atual: <strong id="statsRefDate">----/--/--</strong></span>
+        </div>
+        <div class="stats-grid">
+          <div class="stat-box stat-highlight">
+            <span class="stat-label">Respostas enviadas hoje</span>
+            <strong id="statRepliesToday" class="stat-value">0</strong>
+          </div>
+          <div class="stat-box stat-highlight">
+            <span class="stat-label">Números respondidos hoje</span>
+            <strong id="statPhonesToday" class="stat-value">0</strong>
+          </div>
+          <div class="stat-box">
+            <span class="stat-label">Total de mensagens recebidas</span>
+            <strong id="statTotalReceived" class="stat-value">0</strong>
+          </div>
+          <div class="stat-box">
+            <span class="stat-label">Ignoradas por limite diário</span>
+            <strong id="statIgnoredLimit" class="stat-value">0</strong>
+          </div>
+          <div class="stat-box">
+            <span class="stat-label">Ignoradas por horário</span>
+            <strong id="statIgnoredHours" class="stat-value">0</strong>
+          </div>
+          <div class="stat-box stat-danger-box">
+            <span class="stat-label">Total de erros</span>
+            <strong id="statErrors" class="stat-value">0</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-header">
+          <h3>Pré-visualização da Mensagem Ativa</h3>
+          <button id="btnDashEditMsgInline" class="btn btn-sm btn-brown">Editar Mensagem</button>
+        </div>
+        <div class="wa-preview-wrapper">
+          <div class="wa-bubble" id="dashMessagePreview">Carregando mensagem...</div>
+        </div>
+      </section>
+    </section>
+
+    <!-- TAB: WHATSAPP CONNECTION -->
+    <section id="tab-whatsapp" class="tab-panel">
+      <div class="grid-2">
+        <article class="card">
+          <div class="card-header">
+            <h3>Conexão com WhatsApp</h3>
+            <span id="waScreenBadge" class="badge badge-neutral">Desconectado</span>
+          </div>
+
+          <p class="muted">
+            Conexão não oficial utilizando WhatsApp Web (Baileys). A sessão fica salva localmente no servidor e não é exposta publicamente.
+          </p>
+
+          <dl class="info-list">
+            <div class="info-row">
+              <dt>Estado atual</dt>
+              <dd id="waScreenStatus">Desconectado</dd>
+            </div>
+            <div class="info-row">
+              <dt>Número conectado</dt>
+              <dd id="waScreenPhone">Nenhum</dd>
+            </div>
+            <div class="info-row">
+              <dt>Última conexão</dt>
+              <dd id="waScreenLastConn">Nunca conectado</dd>
+            </div>
+            <div class="info-row">
+              <dt>Sessão salva localmente</dt>
+              <dd id="waScreenSavedSession">Não</dd>
+            </div>
+          </dl>
+
+          <div id="waErrorBox" class="alert-error hidden"></div>
+
+          <div class="btn-row">
+            <button id="waBtnConnect" class="btn btn-caramel">Gerar QR / Conectar</button>
+            <button id="waBtnDisconnect" class="btn btn-outline">Desconectar</button>
+            <button id="waBtnLogout" class="btn btn-danger">Encerrar Sessão (Limpar QR)</button>
+          </div>
+        </article>
+
+        <article class="card qr-card">
+          <div class="card-header">
+            <h3>Leitura do QR Code</h3>
+          </div>
+          <div id="qrBox" class="qr-box">
+            <p class="muted">Clique em <strong>Gerar QR / Conectar</strong> para iniciar a conexão e exibir o QR Code.</p>
+          </div>
+          <ol class="qr-steps">
+            <li>Abra o <strong>WhatsApp</strong> no celular do Negão Lanches.</li>
+            <li>Toque em <strong>Mais opções (⋮)</strong> ou <strong>Configurações</strong>.</li>
+            <li>Selecione <strong>Dispositivos conectados</strong> &gt; <strong>Conectar dispositivo</strong>.</li>
+            <li>Aponte a câmera para o QR Code exibido acima.</li>
+          </ol>
+        </article>
+      </div>
+    </section>
+
+    <!-- TAB: CAMPAIGNS -->
+    <section id="tab-campaigns" class="tab-panel">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h3>Gerenciamento de Campanhas</h3>
+            <p class="muted">Somente uma campanha pode permanecer ativa por vez. Cada campanha possui controle diário independente (1 resposta por número por dia).</p>
+          </div>
+          <button id="btnNewCampaign" class="btn btn-caramel">+ Nova Campanha</button>
+        </div>
+
+        <div id="campaignsList" class="campaigns-grid">
+          <p class="muted">Carregando campanhas...</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB: HISTORY -->
+    <section id="tab-history" class="tab-panel">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h3>Histórico de Mensagens e Respostas</h3>
+            <p class="muted">Registro persistente em SQLite. O conteúdo das conversas particulares dos clientes não é armazenado.</p>
+          </div>
+          <button id="btnRefreshHistory" class="btn btn-outline">Atualizar</button>
+        </div>
+
+        <form id="historyFilterForm" class="filter-bar">
+          <label>
+            <span>Data</span>
+            <input type="date" id="filterDate" />
+          </label>
+          <label>
+            <span>Telefone</span>
+            <input type="text" id="filterPhone" placeholder="Ex: 5511999999999" />
+          </label>
+          <label>
+            <span>Campanha</span>
+            <select id="filterCampaign">
+              <option value="">Todas as campanhas</option>
+            </select>
+          </label>
+          <label>
+            <span>Status</span>
+            <select id="filterStatus">
+              <option value="">Todos os status</option>
+            </select>
+          </label>
+          <div class="filter-actions">
+            <button type="submit" class="btn btn-brown">Filtrar</button>
+            <button type="button" id="btnClearFilters" class="btn btn-outline">Limpar</button>
+          </div>
+        </form>
+
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Remetente</th>
+                <th>Data Msg</th>
+                <th>Hora Msg</th>
+                <th>Data Resposta</th>
+                <th>Hora Resposta</th>
+                <th>Campanha</th>
+                <th>Status</th>
+                <th>Detalhes</th>
+              </tr>
+            </thead>
+            <tbody id="historyTableBody">
+              <tr>
+                <td colspan="8" class="muted center">Carregando histórico...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB: OPT-OUTS -->
+    <section id="tab-optouts" class="tab-panel">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h3>Contatos Bloqueados (Opt-out)</h3>
+            <p class="muted">Contatos que solicitaram não receber comunicações automáticas (ex: enviaram "SAIR" ou "PARAR") ou bloqueados manualmente.</p>
+          </div>
+        </div>
+
+        <form id="optOutForm" class="inline-form">
+          <input type="text" id="optOutPhoneInput" placeholder="Número com DDI+DDD (ex: 5511999999999)" required />
+          <input type="text" id="optOutReasonInput" placeholder="Motivo (opcional)" />
+          <button type="submit" class="btn btn-brown">Bloquear Número</button>
+        </form>
+
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Telefone</th>
+                <th>Motivo</th>
+                <th>Data do Bloqueio</th>
+                <th>Ação</th>
+              </tr>
+            </thead>
+            <tbody id="optOutTableBody">
+              <tr>
+                <td colspan="4" class="muted center">Nenhum contato bloqueado.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- MODAL: EDIT / CREATE CAMPAIGN OR MESSAGE -->
+  <div id="campaignModal" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 id="campaignModalTitle">Editar Campanha</h2>
+        <button type="button" class="btn-close" data-close-modal="campaignModal">&times;</button>
+      </div>
+      <form id="campaignForm" class="stack-form">
+        <input type="hidden" id="campaignIdInput" />
+        <label>
+          <span>Nome da campanha</span>
+          <input type="text" id="campaignNameInput" required />
+        </label>
+        <div class="grid-2">
+          <label>
+            <span>Horário inicial (America/Sao_Paulo)</span>
+            <input type="time" id="campaignStartInput" value="17:00" required />
+          </label>
+          <label>
+            <span>Horário final (America/Sao_Paulo)</span>
+            <input type="time" id="campaignEndInput" value="00:00" required />
+          </label>
+        </div>
+        <label>
+          <span>Mensagem automática (mantém quebras de linha e formatação)</span>
+          <textarea id="campaignMessageInput" rows="7" required></textarea>
+        </label>
+        <div id="activateOnCreateRow" class="checkbox-row hidden">
+          <input type="checkbox" id="campaignActivateCheckbox" />
+          <label for="campaignActivateCheckbox">Ativar esta campanha imediatamente ao salvar</label>
+        </div>
+        <div>
+          <span class="preview-label">Pré-visualização exata para o cliente:</span>
+          <div class="wa-preview-wrapper">
+            <div class="wa-bubble" id="campaignModalPreview"></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" data-close-modal="campaignModal">Cancelar</button>
+          <button type="submit" class="btn btn-caramel">Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: PREVIEW MESSAGE -->
+  <div id="previewModal" class="modal-backdrop hidden">
+    <div class="modal-card modal-sm">
+      <div class="modal-header">
+        <h2 id="previewModalTitle">Pré-visualização da Mensagem</h2>
+        <button type="button" class="btn-close" data-close-modal="previewModal">&times;</button>
+      </div>
+      <p class="muted" id="previewModalMeta"></p>
+      <div class="wa-preview-wrapper">
+        <div class="wa-bubble" id="previewModalBubble"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-brown" data-close-modal="previewModal">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>
